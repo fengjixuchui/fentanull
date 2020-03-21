@@ -13,8 +13,9 @@
 # fentanull 
 fentanull is a LKM ring0 rootkit loosely based off of [diamorphine].(https://github.com/m0nad/diamorphine) (haha, get it? cuz fentanyl is an analogue of heroin, nvm ill shut up now.) This is a work in progress: I will be continuously adding more features as time goes on. 
 
-# how it works 
-
+# features 
+- 2 (two!!!!) ways of writing to read-only pages 
+- ???
 
 # to-do list 
 - [ ] Implement anti-RE features 
