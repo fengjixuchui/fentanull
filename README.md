@@ -23,10 +23,11 @@ fentanull is a LKM ring0 rootkit loosely based off of [diamorphine].(https://git
 	- [] read 
 	- [] kill 
 	- [] execve 
-	- [] getdents* 
+	- [] getdents\* 
 	- [] socket
 	- [] accept 
 - [] Implement backdoor (no idea what im gonna be using for now)
+- [] Persistence (coming v soon)
 - [] Network hiding 
 - [] Clean up code 
 - [] ??? 
