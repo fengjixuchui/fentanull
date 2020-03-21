@@ -15,20 +15,20 @@ fentanull is a LKM ring0 rootkit loosely based off of [diamorphine].(https://git
 
 
 # to-do list 
-- [] Implement anti-RE features 
-	- [] String obfuscation (probably only going to be stack strings + xor because I'm lazy )
-	- [] VM detection 
-	- [] ???
-- [] Hook more syscalls (only open is hooked for now)
-	- [] read 
-	- [] kill 
-	- [] execve 
-	- [] getdents\* 
-	- [] socket
-	- [] accept 
-- [] Implement backdoor (no idea what im gonna be using for now)
-- [] Persistence (coming v soon)
-- [] Network hiding 
-- [] Clean up code 
-- [] ??? 
-- [] Profit 
+- [ ] Implement anti-RE features 
+	- [ ] String obfuscation (probably only going to be stack strings + xor because I'm lazy )
+	- [ ] VM detection 
+	- [ ] ???
+- [ ] Hook more syscalls (only open is hooked for now)
+	- [ ] read 
+	- [ ] kill 
+	- [ ] execve 
+	- [ ] getdents\* 
+	- [ ] socket
+	- [ ] accept 
+- [ ] Implement backdoor (no idea what im gonna be using for now)
+- [ ] Persistence (coming v soon)
+- [ ] Network hiding 
+- [ ] Clean up code 
+- [ ] ??? 
+- [ ] Profit 
