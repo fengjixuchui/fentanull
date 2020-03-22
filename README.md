@@ -13,6 +13,9 @@
 # fentanull 
 fentanull is a LKM ring0 rootkit loosely based off of [diamorphine](https://github.com/m0nad/diamorphine) (haha, get it?) This is a work in progress: I will be continuously adding more features as time goes on. 
 
+# WARNING 
+I am not a great programmer, and I am not one of those guys in cargo shorts and open-toed sandals who knows Linux better than they know themselves. This is merely a PoC/practice for me and might seriously fuck up your system: currently, it crashes my host Arch install but works fine on lxubuntu. Do not do anything with this unless you know what you are doing. 
+
 # features 
 - 2 (two!!!!) ways of writing to read-only pages 
 - ???
