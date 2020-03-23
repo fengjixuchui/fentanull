@@ -16,9 +16,12 @@ fentanull is a LKM ring0 rootkit loosely based off of [diamorphine](https://gith
 # WARNING 
 I am not a great programmer, and I am not one of those guys in cargo shorts and open-toed sandals who knows Linux better than they know themselves. This is merely a PoC/practice for me and might seriously fuck up your system: currently, it crashes my host Arch install but works fine on lxubuntu. Do not do anything with this unless you know what you are doing. 
 
+# Issues 
+- Potential race condition in how the WP bit in cr0 is set, will fix with some inline asm magic later  
+
 # features 
 - 2 (two!!!!) ways of writing to read-only pages 
-- ???
+- File hiding by prefixing files with "hideme-"
 
 # to-do list 
 - [ ] Implement anti-RE features 

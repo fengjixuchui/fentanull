@@ -1,4 +1,3 @@
-#define MAGICSTR "99redballoons"
+#define MAGICSTR "hideme-"
 #define PW "publicenemy" 
-#define DEBUG 
-#define PATTERN 
+#define DEBUG
