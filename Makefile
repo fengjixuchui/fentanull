@@ -6,5 +6,5 @@ modules:
 modules_install: 
 	make -C /lib/modules/$(shell uname -r)/build M=$(shell pwd) modules_install
 clean: 
-	make -C /lib/modules/$(shell uname -r)/build M=$(shell pwd) clean 
+	rm Module.symvers; rm fentanull.mod.*; rm modules.order; rm fentanull.o
 .PHONY: modules modules_install clean
