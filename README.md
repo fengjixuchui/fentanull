@@ -44,6 +44,7 @@ I am not a great programmer, and I am not one of those guys in cargo shorts and 
 
 # installation 
 ```
+sudo make 
 sudo make clean 
 sudo insmod fentanull.ko hook_type={1, 0}
 ``` 
