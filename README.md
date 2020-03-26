@@ -18,6 +18,7 @@ I am not a great programmer, and I am not one of those guys in cargo shorts and 
 
 # Issues 
 - Potential race condition in how the WP bit in cr0 is set, will fix with some inline asm magic later  
+- Does not appear to work with 5.x (depends on distro) 
 
 # features 
 - 2 (two!!!!) ways of writing to read-only pages 
